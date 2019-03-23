@@ -1,0 +1,108 @@
+---
+title: "Altman"
+author: "M.Shreeram"
+date: "23 February 2019"
+output: html_document
+---
+#Problem Statement:
+Goal of the test is to come up with a logistic regression model which predicts whether the company will be Bankrupt or Solvent.Where Xs are the predictor variables. Status is the 'Y' variable. 
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(root.dir = "/home/msc1/R/Assignment 5")
+```
+
+```{r}
+getwd()
+altdata= read.csv("Altman.csv")
+head(altdata)
+```
+#Creating a Logistic Regression Model
+```{r}
+maindata = glm(Status ~ X1 + X2 + X3 + X4 + X5,data= altdata,family = binomial)
+summary(maindata)
+```
+The AIC value of this model is good but the range of the estimates has a 0 in it ie., there is a probability that the varibales may take 0 value which is not expected.
+
+Therefore we try and remove some varibales and find a model with all the conditions satisfied and also least AIC value.
+
+After few trails I found that the AIC value for the below model is the least amongst other combination of variables and also satisfying the range constraint.
+```{r}
+maindata1 = glm(Status ~ X2,data= altdata,family = binomial)
+summary(maindata1)
+```
+Therefore we go ahead with maindata1 which has only one variable X2 and also from the above statistics we can see that the p-value of X2 is < 0.05 which means that X2 is contributing to the Status.
+So we go ahead with the above model.
+
+```{r}
+require(lmtest)
+require(pscl)
+```
+##Checking the statistical significance of the model
+```{r}
+lrtest(maindata1)
+
+```
+The result shows atleast one of the betas is not equal to zero.
+
+###The understanding of Log Likelihood Ratio Test
+
+The above likelihood ratio test states that the Status is dependent upon the variables X2 and X3
+
+#Computation and Interpretation of McFadden Value
+```{r}
+pR2(maindata1)
+```
+
+From above statistics we can see that the McFadden Value is 82.7 we conclude that almost 83% of the uncentanity produced by the intercept only model has been explained by the Full Model.
+
+
+#Explanatory power of odds and Probability
+```{r} 
+odds= exp(coef(maindata1))   #odds 
+prob= odds/(1+odds)
+```
+###ODDS:
+```{r}
+odds
+```
+
+###PROBABILITIES:
+```{r}
+prob
+```
+If X2 increases by 1 unit the odds of status becoming Solvent goes up by 1.1932 ie.,probability that the status is solvent increases to 0.54 for unit increase in X2 and keeping other values unchanged.
+
+##Let us divide the data set
+```{r}
+library(caret)
+set.seed(3456)
+
+training<- createDataPartition(altdata$Status,times= 1,p= 0.5,list= FALSE)
+
+training_data= altdata[training,]
+test_data= altdata[-training,]
+```
+
+##Confusion Matrix
+```{r}
+trainData_probabilities <- predict(maindata1,type="response",data=training_data)
+cutoff <- floor(trainData_probabilities+0.5)
+table(Actual = altdata$Status,Predicted = cutoff)
+```
+
+
+### 31 + 32 = 63 out of 66 observations are classified exactly with an accuracy of 95.45%
+
+#Let us test the accuracy by using test data
+
+##Confusion matrix for the test data
+```{r}
+testData_probabilities<- predict(maindata1,type="response",newdata=test_data)
+cutoff2 <- floor(testData_probabilities+0.5)
+length(test_data$Status)
+table(Actual = test_data$Status,Predicted = cutoff2)
+```
+###30 out of 32 predictions are made without any error.Therefore for any given data, the model will be able to predict the Status with an accuracy of 93.75%
+
+##On an average this model predicts the Status with an accuarcy of 94.6%(93.75% + 95.45%)

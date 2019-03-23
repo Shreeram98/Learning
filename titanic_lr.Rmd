@@ -1,0 +1,187 @@
+---
+title: "Titanic"
+author: "M.Shreeram"
+date: "20 February 2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(root.dir= "/home/msc1/R/Assignment 7")
+```
+##Problem Statement:
+Goal of the test is to come up with a logistic regression model which predicts whether the person is survived or not.
+```{r}
+getwd()
+traindata= read.csv("train.csv")
+testdata= read.csv("test.csv")
+#head(traindata)
+#head(testdata)
+#dim(traindata)
+#dim(testdata)
+sum(is.na(traindata))   #finding the number of NA's in the given train dataset
+sum(is.na(testdata))    #finding the number of NA's in the given test dataset
+```
+
+We can also see that there are 177 missing values in traindata and 87 missing values in testdata.We use some data cleaning techniques to remove these missing values.
+
+
+#Cleaning the data set
+```{r}
+#na.omit(traindata) #omits any NA values in the traindata
+any(is.na(traindata$Age))   #indicates if there is any NA present in the data set
+traindata[is.na(traindata)] <- 0  #replacing all the NA values by 0 to find the median of that column
+median= median(traindata$Age)#calculating the median of age column
+traindata= read.csv("train.csv")
+traindata$Age[is.na(traindata$Age)]<- median #replaces the value with the median of that column
+```
+
+```{r}
+#na.omit(testdata) #omits any NA values in the testdata
+any(is.na(testdata$Age))      #indicates if there is any NA present in the data set
+testdata[is.na(testdata)] <- 0 #replacing all the NA values by 0 for computing the median
+median= median(testdata$Age)  #calculating the median of age column
+testdata= read.csv("test.csv")    
+testdata$Age[is.na(testdata$Age)]<- median #replaces the value with the median of that column
+sum(is.na(testdata$Age))
+```
+
+###Effect of Gender on Survival
+```{r}
+table(Survived= traindata$Survived,Gender= traindata$Sex)
+```
+From the above table we can say that 233 female passengers out of 314 survived and only 109 male passengers out of 577 survived.
+
+###Effect of Passenger class on Survival
+```{r}
+table(Survived= traindata$Survived,Passenger_Class= traindata$Pclass)
+```
+We can see that,
+
+  - 136/216 passengers of first class survived(62.9% Survival)
+    
+  - 87/184 passengers of second class survived(47.2% Survival)
+    
+  - 119/491 passengers of third class survived(24.2% Survival)
+    
+Therefore we can say that a passenger from high class is having more chance of Survival
+
+###Effect of Siblings and Spouse on Survival
+```{r}
+table(Survived= traindata$Survived,Siblings_Spouse= traindata$SibSp)
+```
+The above table we can see that the passenger having more Sibsp value have survived less.We can see as the Sibsp value increases, the value of Survived decreases.
+
+#Create a Logistic Model
+```{r}
+train_lm= glm(traindata$Survived ~  Parch + SibSp + Age + Sex + Fare + Pclass ,data= traindata,family = binomial)
+```
+I am taking only some variables like Parch,Age,Sex,Fare,Sibsp, Pclass since I feel that they have an impact on Survival
+
+```{r include= FALSE}
+require(lmtest)
+require(pscl)
+```
+#Likelihood Ratio test on Traindata
+```{r}
+lrtest(train_lm)
+```
+We can see that the Model1 is better than Model2 since the LogLikelihood of Model1 is better than that  of Model2.
+Therefore we reject the null hypothesis that all the betas are zero,since there is atleast on beta which is not equal to 0.
+
+
+#pR2 test on Traindata
+```{r}
+pR2(train_lm)
+```
+McFadden value is 33.35%.This means that the model is a very good model and it is a confirmation to move forward with further analysis.
+
+#Summary of Traindata
+```{r}
+summary(train_lm)
+```
+The above model have some estimated values where the range includes a 0.If there is a zero in the range it means that there is a probability that the variable may assume 0 value at some point(which is not expected).So we reject the model and try to modify the model by removing some varibles and also check for a better AIC value.
+
+```{r}
+train_lm1= glm(traindata$Survived ~ ,data= traindata,family = binomial)
+summary(train_lm1)
+```
+#Changed Logistic Model
+```{r}
+train_lm1= glm(traindata$Survived ~   SibSp + Age + Sex + Pclass ,data= traindata,family = binomial)
+summary(train_lm1)
+```
+
+The above model is a better model in comparison with the previous model as the AIC value is low and also the estimates range does not include a 0.We move ahead with this model for further analysis.
+
+From the above summary we can say that all the variables Parch,Sibsp,Age,Sex(male) have a negative impact on the survival.
+
+#pR2 test on changed Train data
+```{r}
+pR2(train_lm1)
+```
+The McFadden value of the new model is 33.19% which means that this model is a very good model.
+
+#Explanatory power of odds
+```{r}
+odds= exp(coef(train_lm1))
+odds
+```
+
+#Probability
+```{r}
+prob= odds/(1+odds)
+prob
+```
+
+  - We can also see that if a person is male his chance of surviving is less.Survival probability is 6%
+  
+  - If the Sibsp value increases by one unit,the odds against survival decreases by 0.70 ie., as the Sibsp value            increases the probability that the passenger survives is 41%.
+
+#Confusion Matrix
+
+##Traindata
+```{r}
+traindata_prob <- predict(train_lm1,type="response",data=traindata)
+cutoff <- floor(traindata_prob+0.4)
+table(Actual = traindata$Survived,Predicted = cutoff)
+```
+###Interpretation
+
+506 + 218 = 724 predictions out of 891 are made correctly with an accuracy of 81.25% and 167 predictions out of 891 are wrong.We can see that the accuarcy of the model is not so good.
+
+#Testing the model using testdata
+```{r}
+traindata_prob <- predict(train_lm1,type="response",newdata=testdata)
+sum(is.na(traindata_prob))
+cutoff1 <- floor(traindata_prob+0.4)
+table(Actual = testdata$Survived,Predicted = cutoff1)
+```
+From the above table we can see that 264 + 128 = 392 out of 418 predictions are correct with an accuracy of 93.77%
+```{r}
+actuals_preds <- data.frame(cbind(actuals=testdata$Survived,predicted =traindata_prob))
+cor(actuals_preds)
+```
+A higher correlation accuracy implies that the actuals and predicted values have similar directional movement ie., as the actual value increses the predicted value also increases.
+#Min_Max Accuracy calcualtion
+```{r}
+min_max= mean(apply(actuals_preds , 1,min)/apply(actuals_preds,1,max))
+min_max
+```
+27.12% Min_Max accuracy.The higher the Min_Max accuracy the better the model is.
+
+#Conclusion:
+
+***Therefore for a given data we can predict the survival of a passenger with an Accuracy of around 93.77%***
+
+
+
+
+
+
+
+
+
+
+
+
